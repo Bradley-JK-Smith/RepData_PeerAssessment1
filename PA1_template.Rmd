@@ -4,22 +4,75 @@ output:
   html_document:
     keep_md: true
 ---
-
+## Load libraries
+```{r libraries}
+library(dplyr, quietly=TRUE)
+library(data.table, quietly=TRUE)
+library(ggplot2,quietly=TRUE)
+library(lubridate, quietly=TRUE)
+```
 
 ## Loading and preprocessing the data
+Use dplyr package
+Convert dates from character to POSIXt
 
-
+```{r load_and_process}
+# Maybe should read the zip file
+x <- fread('activity.csv') %>%
+       mutate(date = ymd(date))
+```
 
 ## What is mean total number of steps taken per day?
-
-
+```{r mean_steps}
+mean(x$steps, na.rm=TRUE)
+median(x$steps, na.rm=TRUE)
+hist(x$steps)
+```
 
 ## What is the average daily activity pattern?
-
-
+```{r activity_pattern}
+y <- group_by(x, interval) %>%
+       summarise(avg = mean(steps, na.rm=TRUE))
+qplot(interval,
+      avg,
+      data = y,
+      geom = 'line',
+      main = 'Average Daily Activity Pattern'
+     )
+y[order(y$avg,decreasing=TRUE)[1],'interval']
+```
 
 ## Imputing missing values
+Use the mean value of the 5 minute period
+Won't change the mean (assuming equal number of 5 min periods)
+May change the median
 
+```{r missing_values}
+sum(is.na(x$steps))
 
+z <- merge(x, y, by='interval') %>%
+       arrange(date, interval) %>%
+       mutate(steps = ifelse(is.na(steps), avg, steps)) %>%
+       select(steps, date, interval)
+hist(z$steps)
+mean(z$steps)
+median(z$steps)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r activity_patterns2}
+dtype <- function(x) {
+  ifelse(wday(x) %in% c(1, 7), 'weekend', 'weekday')
+}
+
+zz <- mutate(z, daytype = as.factor(dtype(date) ) ) %>%
+        group_by(interval, daytype) %>%
+        summarise(avg = mean(steps))
+       
+qplot(interval,
+      avg,
+      data = zz,
+      geom = 'line',
+      facets = daytype ~ .
+     )
+```
