@@ -15,13 +15,13 @@ suppressPackageStartupMessages({
 ```
 
 ## Loading and preprocessing the data
-Use dplyr package  
-Convert dates from character to POSIXt
-
+Read in data from activity.csv  
+Convert interval as this is an integer but represents time  
+For example, 2355 is actually 23 hours 55 minutes  
 ```{r load_and_process}
-# Maybe should read the zip file
-x <- fread('activity.csv') %>%
-       mutate(date = ymd(date)) %>%
+x <- fread('activity.csv')
+print(x)
+x <- mutate(x, date = ymd(date)) %>%
        mutate(hours = floor(interval/100)) %>%
        mutate(minutes = interval - hours*100) %>%
        mutate(time_str = sprintf('%02d:%02d:00', hours, minutes)) %>%
@@ -29,7 +29,8 @@ x <- fread('activity.csv') %>%
 ```
 
 ## What is mean total number of steps taken per day?
-
+Calculate mean and median number of steps per day  
+when NA values are removed from the calculation
 ```{r mean_steps}
 y <- group_by(x, date) %>%
        summarise(total_steps = sum(steps, na.rm=TRUE))
@@ -40,11 +41,15 @@ median(y$total_steps)
 qplot(total_steps,
       data = y,
       geom = 'histogram',
+      xlab = 'Number of total daily steps',
       binwidth = 1000
      )
 ```
 
 ## What is the average daily activity pattern?
+Calculate mean and median number of steps per day  
+and show histogram.  
+Note that NA values are removed from the calculation  
 ```{r activity_pattern}
 y <- group_by(x, time_val) %>%
        summarise(avg = mean(steps, na.rm=TRUE))
@@ -53,15 +58,20 @@ qplot(time_val,
       avg,
       data = y,
       geom = 'line',
-      main = 'Average Daily Activity Pattern'
+      main = 'Average Daily Activity Pattern',
+      xlab = 'Hour of Day',
+      ylab = 'Number of steps in 5 minute period'
      )
 
-max_val <- y[order(y$avg,decreasing=TRUE)[1],'time_val']
+idx <- order(y$avg,decreasing=TRUE)
+time_of_max_steps <- as.numeric(y[idx[1], 'time_val'])
+hour_of_max_steps <- floor(time_of_max_steps)
+minute_of_max_steps <- (time_of_max_steps - hour_of_max_steps)*60
+cat('Max steps occurred in interval starting ', hour_of_max_steps, ':', minute_of_max_steps, sep='')
 ```
 
 ## Imputing missing values
-Use the mean value of the 5 minute period
-
+Use the mean value of the 5 minute period  
 ```{r missing_values}
 sum(is.na(x$steps))
 
@@ -70,23 +80,29 @@ x <- merge(x, y, by='time_val') %>%
        mutate(steps = ifelse(is.na(steps), avg, steps)) %>%
        select(steps, date, time_val)
 ```
+Calculate mean and median number of steps per day  
+and show histogram.  
+Note that NA values have been imputed.  
 ```{r repeat_mean_steps, ref.label='mean_steps'}
 ```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+Well, it looks like we get up later on the weekends.  
 ```{r activity_patterns2}
 dtype <- function(x) {
   ifelse(wday(x) %in% c(1, 7), 'weekend', 'weekday')
 }
 
-zz <- mutate(x, daytype = as.factor(dtype(date) ) ) %>%
-        group_by(time_val, daytype) %>%
-        summarise(avg = mean(steps))
+z <- mutate(x, daytype = as.factor(dtype(date) ) ) %>%
+       group_by(time_val, daytype) %>%
+       summarise(avg = mean(steps))
        
 qplot(time_val,
       avg,
-      data = zz,
-      geom = 'line',
-      facets = daytype ~ .
+      data   = z,
+      geom   = 'line',
+      facets = daytype ~ .,
+      xlab   = 'Hour of Day',
+      ylab   = 'Number of steps in 5 minute period'
      )
 ```
